@@ -1,5 +1,8 @@
 import streamlit as st
 from openai import OpenAI
+import PyPDF2
+import tempfile 
+import os
 
 PKNU_LIBRARY_REGULATIONS = open("library_rule.txt", encoding="utf-8").read()
 
