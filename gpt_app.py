@@ -63,4 +63,3 @@ elif page == "Chat":
         gpt_response = get_gpt_response(st.session_state.api_key, user_input, st.session_state.chat_history[:-1])
         # 대화 내역에 추가 (assistant)
         st.session_state.chat_history.append({"role": "assistant", "content": gpt_response})
-        st.experimental_rerun()
