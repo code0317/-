@@ -135,7 +135,7 @@ PKNU_LIBRARY_REGULATIONS = """
 """
 
 # --- 사이드바에서 페이지 선택 ---
-page = st.sidebar.selectbox("페이지를 선택하세요.", ["질문", "Chat", "Chatbot"])
+page = st.sidebar.selectbox("페이지를 선택하세요.", ["chat", "Chatbot", "부경 도서관Chatbot"])
 
 # --- API Key 입력 및 session_state 저장 ---
 if "api_key" not in st.session_state:
