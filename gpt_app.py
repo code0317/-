@@ -20,7 +20,7 @@ client = OpenAI(api_key=st.session_state.api_key)
 
 # --- 실습 1 : 질문 페이지 ---
 if page == "질문":
-    st.title("OpenAI 한 번 질문 (실습1)")
+    st.title("질문")
 
     prompt = st.text_area("User prompt")
     if st.button("Ask!", disabled=(len(prompt.strip()) == 0)):
@@ -33,7 +33,7 @@ if page == "질문":
 
 # --- 실습 2 : Chat 페이지 ---
 elif page == "Chat":
-    st.title("Chatbot (실습2)")
+    st.title("Chatbot")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
