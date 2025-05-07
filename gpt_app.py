@@ -1,26 +1,27 @@
 import streamlit as st
 from openai import OpenAI
 
-if "api_key" not in st.session_state:
-    st.session_state.api_key = ""
+# API 키 입력
+api_key = st.text_input("OpenAI API Key", type="password")
 
-api_key = st.text_input("OpenAI API Key", type="password", value=st.session_state.api_key)
+# 클라이언트 생성 함수 (캐싱 X)
+def create_client(api_key):
+    return OpenAI(api_key=api_key)
 
-if api_key != st.session_state.api_key:
-    st.session_state.api_key = api_key
-    
-if st.session_state.api_key:
-    client = OpenAI(api_key=st.session_state.api_key)
-    
-    st.title("OpenAI GPT model")
-    
-    prompt = st.text_area("User prompt")
-
-    if st.button("Ask!", disabled=(len(prompt)==0)):
+# GPT 응답 함수 (캐싱 O)
+@st.cache_data(show_spinner="응답을 불러오는 중...")
+def get_gpt_response(api_key, prompt):
+    client = create_client(api_key)
     response = client.responses.create(
         model="gpt-4.1-mini",
         input=prompt
     )
-    st.write(response.output_text)
+    return response.output_text
 
-else:st.warning("API Key를 입력해 주세요.") 
+# UI 구성
+st.title("OpenAI GPT model")
+prompt = st.text_area("User prompt")
+
+if st.button("Ask!", disabled=(len(prompt) == 0 or not api_key)):
+    output = get_gpt_response(api_key, prompt)
+    st.write(output)
