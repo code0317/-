@@ -1,28 +1,39 @@
 import streamlit as st
 from openai import OpenAI
 
+# --- 사이드바에서 페이지 선택 ---
+page = st.sidebar.selectbox("페이지를 선택하세요.", ["질문", "Chat"])
+
+# --- API Key 입력 및 session_state 저장 ---
 if "api_key" not in st.session_state:
     st.session_state.api_key = ""
+
 api_key_input = st.text_input("OpenAI API Key", type="password", value=st.session_state.api_key)
 if api_key_input and api_key_input != st.session_state.api_key:
     st.session_state.api_key = api_key_input
+
 if not st.session_state.api_key:
     st.warning("API Key를 입력해 주세요.")
     st.stop()
 
-@st.cache_data(show_spinner="GPT에게 물어보는 중입니다...")
-def get_gpt_response(api_key, messages):
-    client = OpenAI(api_key=api_key)
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=messages
-    )
-    return response.choices[0].message.content
+client = OpenAI(api_key=st.session_state.api_key)
 
-page = st.sidebar.selectbox("페이지를 선택하세요.", ["질문", "Chat"])
+# --- 실습 1 : 질문 페이지 ---
+if page == "질문":
+    st.title("OpenAI 한 번 질문 (실습1)")
 
-if page == "Chat":
-    st.header("Chatbot (실습2)")
+    prompt = st.text_area("User prompt")
+    if st.button("Ask!", disabled=(len(prompt.strip()) == 0)):
+        with st.spinner("GPT에게 물어보는 중입니다..."):
+            response = client.chat.completions.create(
+                model="gpt-4.1-mini",
+                messages=[{"role": "user", "content": prompt}]
+            )
+            st.write(response.choices[0].message.content)
+
+# --- 실습 2 : Chat 페이지 ---
+elif page == "Chat":
+    st.title("Chatbot (실습2)")
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -30,25 +41,28 @@ if page == "Chat":
     if st.button("Clear"):
         st.session_state.messages = []
 
-    # 대화 내역 보여주기
+    # 대화 내역 표시
     for msg in st.session_state.messages:
-        if msg["role"] == "user":
-            st.markdown(f":bust_in_silhouette: {msg['content']}")
-        elif msg["role"] == "assistant":
-            st.markdown(f":robot_face: {msg['content']}")
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
 
-    # (1) 입력창 값은 반드시 세션에서 뽑기!
-    user_input = st.text_input("메시지를 입력하세요:", key="chat_input")
+    # 채팅 입력 & 응답
+    if prompt := st.chat_input("메시지를 입력하세요:"):
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.write(prompt)
 
-    # (2) Send 버튼 눌렀을 때 조건 CLEAR하게 체크
-    if st.button("Send"):
-        ui = st.session_state["chat_input"]  # 반드시 최신값 가져오기!
-        if ui.strip():  # 빈칸 아닐 때만
-            st.session_state.messages.append({"role": "user", "content": ui})
-            gpt_output = get_gpt_response(
-                st.session_state.api_key,
-                st.session_state.messages
-            )
-            st.session_state.messages.append({"role": "assistant", "content": gpt_output})
-            st.session_state["chat_input"] = ""  # 입력창 비우기
-         
+        chat_response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=st.session_state.messages,
+            stream=True
+        )
+
+        generated_text = ""
+        with st.chat_message("assistant"):
+            chat_area = st.empty()
+            for chunk in chat_response:
+                if hasattr(chunk.choices[0].delta, "content") and chunk.choices[0].delta.content:
+                    generated_text += chunk.choices[0].delta.content
+                    chat_area.markdown(generated_text)
+        st.session_state.messages.append({"role": "assistant", "content": generated_text})
