@@ -1,14 +1,21 @@
 import streamlit as st
 from openai import OpenAI
 
-# 1. API 키 저장 (session_state 이용)
+
+# API 키 세션에 저장
 if "api_key" not in st.session_state:
     st.session_state.api_key = ""
 
-api_key = st.text_input("OpenAI API Key", type="password", value=st.session_state.api_key)
+api_key_input = st.text_input("OpenAI API Key", type="password", value=st.session_state.api_key)
 
-if api_key != st.session_state.api_key:
-    st.session_state.api_key = api_key
+# 입력한 값이 변경되었을 경우에만 저장
+if api_key_input and api_key_input != st.session_state.api_key:
+    st.session_state.api_key = api_key_input
+
+# API 키가 없을 때는 경고 표시
+if not st.session_state.api_key:
+    st.warning("API Key를 입력해 주세요.")
+
 
 # 2. OpenAI 클라이언트 생성
 def create_client(api_key):
