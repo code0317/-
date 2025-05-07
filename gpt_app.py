@@ -137,7 +137,7 @@ PKNU_LIBRARY_REGULATIONS = """
 
 
 # 2. 페이지 선택(세 개)
-page = st.sidebar.selectbox("페이지를 선택하세요.", ["Chat", "Chatbot", "부경 도서관Chatbot"])
+page = st.sidebar.selectbox("페이지를 선택하세요.", ["Chat", "ChatBot", "부경 도서관Chatbot"])
 
 # 3. API key 입력 (기존과 동일)
 if "api_key" not in st.session_state:
@@ -152,8 +152,8 @@ if not st.session_state.api_key:
 client = OpenAI(api_key=st.session_state.api_key)
 
 # --- 실습1 ---
-if page == "질문":
-    st.title("질문")
+if page == "Chat":
+    st.title("Chat")
     prompt = st.text_area("User prompt")
     if st.button("Ask!", disabled=(len(prompt.strip()) == 0)):
         with st.spinner("GPT에게 물어보는 중입니다..."):
@@ -164,7 +164,7 @@ if page == "질문":
             st.write(response.choices[0].message.content)
 
 # --- 실습2 ---
-elif page == "Chat":
+elif page == "ChatBot":
     st.title("Chatbot")
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -192,7 +192,7 @@ elif page == "Chat":
         st.session_state.messages.append({"role": "assistant", "content": generated_text})
 
 # --- 실습3 Chatbot(도서관 챗봇) ---
-elif page == "Chatbot":
+elif page == "부경 도서관Chatbot":
     st.title("국립부경대학교 도서관 챗봇")
     # 대화 상태 분리해서 관리
     if "lib_messages" not in st.session_state:
