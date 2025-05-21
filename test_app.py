@@ -2,6 +2,10 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import random
 import matplotlib.font_manager as fm
+import matplotlib
+
+# 한글 폰트 설정 (예: 나눔고딕)
+matplotlib.rc('font', family='NanumGothic')
 
 
 # 한글 폰트 설정 (예: 나눔고딕)
