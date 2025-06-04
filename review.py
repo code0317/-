@@ -6,9 +6,17 @@ from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 import time
 
-# OpenAI API 키
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# 🔑 GPT API 키 입력받기
+st.title("🛒 쿠팡 리뷰 분석기 (GPT 기반)")
+api_key = st.text_input("🔐 OpenAI API 키를 입력하세요", type="password")
 
+if api_key:
+    openai.api_key = api_key
+else:
+    st.warning("API 키를 먼저 입력해주세요.")
+    st.stop()
+
+# 쿠팡 리뷰 크롤링 함수
 def get_reviews_from_coupang(product_url, max_pages=1):
     options = Options()
     options.add_argument('--headless')
@@ -19,7 +27,6 @@ def get_reviews_from_coupang(product_url, max_pages=1):
     driver.get(product_url)
     time.sleep(3)
 
-    # 리뷰 탭 클릭
     try:
         review_tab = driver.find_element(By.XPATH, '//a[@data-tab="review"]')
         review_tab.click()
@@ -50,6 +57,7 @@ def get_reviews_from_coupang(product_url, max_pages=1):
     driver.quit()
     return reviews
 
+# GPT 분석 함수
 def analyze_review(review_text):
     system_prompt = """
     당신은 리뷰 분석 전문가입니다. 다음 리뷰를 요약하고, 광고성 리뷰인지, 무지성 비판(억까) 리뷰인지, 일반적인 사용자 리뷰인지 판단하세요.
@@ -70,12 +78,11 @@ def analyze_review(review_text):
     return response.choices[0].message.content.strip()
 
 # Streamlit UI
-st.title("🛒 쿠팡 리뷰 분석기 (GPT 기반)")
-product_url = st.text_input("쿠팡 상품 URL 입력")
+product_url = st.text_input("📎 쿠팡 상품 URL을 입력하세요")
 
 if st.button("리뷰 크롤링 및 분석"):
     if not product_url:
-        st.warning("URL을 입력해주세요.")
+        st.warning("쿠팡 상품 URL을 입력해주세요.")
     else:
         with st.spinner("쿠팡 리뷰 크롤링 중..."):
             reviews = get_reviews_from_coupang(product_url, max_pages=1)
@@ -85,7 +92,7 @@ if st.button("리뷰 크롤링 및 분석"):
         else:
             st.success(f"{len(reviews)}개의 리뷰를 가져왔습니다.")
 
-            for i, review in enumerate(reviews[:5]):  # 최대 5개만 테스트
+            for i, review in enumerate(reviews[:5]):
                 st.markdown(f"---\n### 리뷰 {i+1}")
                 st.markdown(f"**원문:** {review}")
                 with st.spinner("GPT 분석 중..."):
