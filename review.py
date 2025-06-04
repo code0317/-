@@ -22,6 +22,8 @@ def get_naver_shopping_reviews(product_id, max_pages=2):
         if not data.get("hasNext"):
             break
 
+        time.sleep(1.5)
+
     return reviews
 
 # --- Sapling AI Detector API ---
