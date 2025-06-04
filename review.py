@@ -1,66 +1,38 @@
 import streamlit as st
 import openai
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from bs4 import BeautifulSoup
-import time
+import requests
 
-# 🔑 GPT API 키 입력받기
-st.title("🛒 쿠팡 리뷰 분석기 (GPT 기반)")
-api_key = st.text_input("🔐 OpenAI API 키를 입력하세요", type="password")
+st.title("🔍 Prospective 1차 필터 + GPT 심층 분석 리뷰 분석기")
 
-if api_key:
-    openai.api_key = api_key
-else:
-    st.warning("API 키를 먼저 입력해주세요.")
-    st.stop()
+api_key_openai = st.text_input("🔐 OpenAI API 키 입력", type="password")
+api_key_prospective = st.text_input("🔐 Prospective API 키 입력", type="password")
 
-# 쿠팡 리뷰 크롤링 함수
-def get_reviews_from_coupang(product_url, max_pages=1):
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    driver = webdriver.Chrome(options=options)
+reviews_input = st.text_area(
+    "📋 분석할 리뷰들을 한 줄씩 입력하세요 (여러 리뷰는 줄바꿈으로 구분)",
+    height=200
+)
 
-    driver.get(product_url)
-    time.sleep(3)
+def prospective_review_check(review_text, api_key):
+    url = "https://api.prospectiveapi.com/v1/review-check"  # 실제 API 주소 확인 필요
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {"review": review_text}
 
     try:
-        review_tab = driver.find_element(By.XPATH, '//a[@data-tab="review"]')
-        review_tab.click()
-        time.sleep(2)
-    except:
-        st.warning("리뷰 탭을 찾을 수 없습니다.")
-        driver.quit()
-        return []
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {"error": f"API error: {response.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
 
-    reviews = []
-
-    for _ in range(max_pages):
-        soup = BeautifulSoup(driver.page_source, "html.parser")
-        blocks = soup.select("article.sdp-review__article__list__review")
-
-        for b in blocks:
-            text = b.select_one("div.sdp-review__article__list__review__content")
-            if text:
-                reviews.append(text.get_text(strip=True))
-
-        try:
-            next_btn = driver.find_element(By.XPATH, '//button[@aria-label="다음 페이지"]')
-            next_btn.click()
-            time.sleep(2)
-        except:
-            break
-
-    driver.quit()
-    return reviews
-
-# GPT 분석 함수
-def analyze_review(review_text):
+def analyze_review_gpt(review_text, api_key):
+    openai.api_key = api_key
     system_prompt = """
-    당신은 리뷰 분석 전문가입니다. 다음 리뷰를 요약하고, 광고성 리뷰인지, 무지성 비판(억까) 리뷰인지, 일반적인 사용자 리뷰인지 판단하세요.
+    당신은 리뷰 분석 전문가입니다. 다음 리뷰를 보고 요약과 함께 광고성 리뷰인지, 억까 리뷰인지, 일반 리뷰인지 판단해주세요.
     출력 형식:
 
     [요약]:
@@ -73,28 +45,43 @@ def analyze_review(review_text):
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": review_text}
-        ]
+        ],
+        max_tokens=200,
+        temperature=0.7,
     )
     return response.choices[0].message.content.strip()
 
-# Streamlit UI
-product_url = st.text_input("📎 쿠팡 상품 URL을 입력하세요")
-
-if st.button("리뷰 크롤링 및 분석"):
-    if not product_url:
-        st.warning("쿠팡 상품 URL을 입력해주세요.")
+if st.button("리뷰 분석 시작"):
+    if not api_key_openai:
+        st.warning("OpenAI API 키를 입력하세요.")
+    elif not api_key_prospective:
+        st.warning("Prospective API 키를 입력하세요.")
+    elif not reviews_input.strip():
+        st.warning("분석할 리뷰를 입력하세요.")
     else:
-        with st.spinner("쿠팡 리뷰 크롤링 중..."):
-            reviews = get_reviews_from_coupang(product_url, max_pages=1)
+        reviews = [r.strip() for r in reviews_input.split('\n') if r.strip()]
+        st.write(f"총 {len(reviews)}개의 리뷰를 분석합니다.")
 
-        if not reviews:
-            st.warning("리뷰가 없거나 가져올 수 없습니다.")
-        else:
-            st.success(f"{len(reviews)}개의 리뷰를 가져왔습니다.")
+        for i, review in enumerate(reviews, 1):
+            st.markdown(f"---\n### 리뷰 {i}")
+            st.markdown(f"**원문:** {review}")
 
-            for i, review in enumerate(reviews[:5]):
-                st.markdown(f"---\n### 리뷰 {i+1}")
-                st.markdown(f"**원문:** {review}")
-                with st.spinner("GPT 분석 중..."):
-                    result = analyze_review(review)
-                st.markdown(result)
+            with st.spinner("Prospective API 검사 중..."):
+                prospective_result = prospective_review_check(review, api_key_prospective)
+            if "error" in prospective_result:
+                st.error(f"Prospective API 오류: {prospective_result['error']}")
+                continue
+            
+            st.markdown(f"**Prospective API 결과:** {prospective_result}")
+
+            # Prospective API 결과에 따라 GPT 분석 여부 결정
+            # 예시: 'is_ad_review' 또는 'is_fake_review'가 True면 GPT 분석 실행
+            is_ad_review = prospective_result.get("is_ad_review", False)
+            is_fake_review = prospective_result.get("is_fake_review", False)
+
+            if is_ad_review or is_fake_review:
+                with st.spinner("GPT 심층 분석 중..."):
+                    gpt_result = analyze_review_gpt(review, api_key_openai)
+                st.markdown(f"**GPT 분석 결과:**\n{gpt_result}")
+            else:
+                st.markdown("✅ 정상 리뷰로 판단되어 GPT 분석은 생략합니다.")
