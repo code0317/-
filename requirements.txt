@@ -3,3 +3,4 @@ PyPDF2
 matplotlib
 selenium
 beautifulsoup4
+requests
