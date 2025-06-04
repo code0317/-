@@ -1,116 +1,124 @@
 import streamlit as st
 import requests
+from bs4 import BeautifulSoup
 import openai
 
-# --- 네이버 스마트스토어 리뷰 크롤러 ---
-def get_naver_shopping_reviews(product_id, max_pages=2):
-    reviews = []
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
-    for page in range(1, max_pages + 1):
-        url = f"https://smartstore.naver.com/i/v1/reviews?productId={product_id}&page={page}"
-        res = requests.get(url, headers=headers)
-        if res.status_code != 200:
-            st.warning(f"페이지 {page} 요청 실패, 상태코드: {res.status_code}")
-            break
-
-        data = res.json()
-        for review in data.get("reviewList", []):
-            reviews.append(review.get("content", ""))
-
-        if not data.get("hasNext"):
-            break
-
-        time.sleep(1.5)
-
-    return reviews
-
-# --- Sapling AI Detector API ---
-def sapling_review_check(review_text, api_key):
-    url = "https://api.sapling.ai/api/v1/aidetect"
-    headers = {
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "key": api_key,
-        "text": review_text
-    }
-
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            return {"error": f"API error: {response.status_code}"}
-    except Exception as e:
-        return {"error": str(e)}
-
-# --- GPT 리뷰 심층 분석 ---
-def analyze_review_gpt(review_text, api_key):
-    openai.api_key = api_key
-    system_prompt = """
-    당신은 리뷰 분석 전문가입니다. 다음 리뷰를 보고 요약과 함께 광고성 리뷰인지, 억까 리뷰인지, 일반 리뷰인지 판단해주세요.
-    출력 형식:
-
-    [요약]:
-    [리뷰 유형]: 광고성 / 억까 / 일반
-    [신뢰도 분석]:
+def scrape_yes24_reviews(url):
     """
+    Yes24 책 리뷰를 스크래핑하는 함수. 실제 HTML 구조에 맞게 수정 필요.
+    """
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        reviews = []
+        # 가정: 리뷰가 'reviewContent' 클래스에 있음
+        review_divs = soup.find_all('div', class_='reviewContent')
+        for div in review_divs:
+            rating = div.find('span', class_='rating').text.strip() if div.find('span', class_='rating') else "N/A"
+            text = div.find('p', class_='reviewText').text.strip() if div.find('p', class_='reviewText') else "N/A"
+            reviews.append({'rating': rating, 'text': text})
+        return reviews
+    except Exception as e:
+        st.error(f"스크래핑 오류: {e}")
+        return []
 
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": review_text}
-        ],
-        max_tokens=200,
-        temperature=0.7,
-    )
-    return response.choices[0].message.content.strip()
+def scrape_book_info(url):
+    """
+    책 제목과 저자 정보를 스크래핑.
+    """
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        title = soup.find('h1', class_='bookTitle').text.strip() if soup.find('h1', class_='bookTitle') else "Unknown Title"
+        author = soup.find('span', class_='author').text.strip() if soup.find('span', class_='author') else "Unknown Author"
+        return {'title': title, 'author': author}
+    except Exception as e:
+        st.error(f"책 정보 스크래핑 오류: {e}")
+        return {'title': "Unknown Title", 'author': "Unknown Author"}
 
-# --- 스트림릿 UI 시작 ---
-st.title("🛍️ 네이버 스마트스토어 리뷰 신뢰도 분석기")
-
-api_key_openai = st.text_input("🔐 OpenAI API 키 입력", type="password")
-api_key_sapling = st.text_input("🔐 Sapling AI Detector API 키 입력", type="password")
-product_id = st.text_input("📦 네이버 스마트스토어 상품 ID 입력")
-
-max_pages = st.number_input("최대 크롤링할 리뷰 페이지 수", min_value=1, max_value=10, value=2, step=1)
-
-if st.button("리뷰 크롤링 및 분석 시작"):
-    if not api_key_openai:
-        st.warning("OpenAI API 키를 입력하세요.")
-    elif not api_key_sapling:
-        st.warning("Sapling API 키를 입력하세요.")
-    elif not product_id:
-        st.warning("상품 ID를 입력하세요.")
-    else:
-        with st.spinner("리뷰 크롤링 중..."):
-            reviews = get_naver_shopping_reviews(product_id, max_pages=max_pages)
-
-        if len(reviews) == 0:
-            st.error("리뷰를 가져오지 못했습니다.")
+def analyze_with_sapling(review_text, sapling_api_key):
+    """
+    Sapling.ai로 감정 분석. 실제 API 문서에 맞게 수정 필요.
+    """
+    try:
+        headers = {"Authorization": f"Bearer {sapling_api_key}"}
+        data = {"text": review_text}
+        response = requests.post("https://api.sapling.ai/v1/sentiment", headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json()['sentiment']
         else:
-            st.write(f"총 {len(reviews)}개의 리뷰를 가져왔습니다.")
+            return "분석 실패"
+    except Exception as e:
+        return f"오류: {e}"
 
-            for i, review in enumerate(reviews, 1):
-                st.markdown(f"---\n### 리뷰 {i}")
-                st.markdown(f"**원문:** {review}")
+def analyze_with_gpt(review_text, openai_api_key):
+    """
+    GPT로 리뷰 신뢰도 평가.
+    """
+    try:
+        openai.api_key = openai_api_key
+        prompt = f"Assess the reliability of this review (in Korean if applicable): {review_text}"
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            max_tokens=50
+        )
+        return response.choices[0].text.strip()
+    except Exception as e:
+        return f"오류: {e}"
 
-                with st.spinner("Sapling AI Detector 검사 중..."):
-                    sapling_result = sapling_review_check(review, api_key_sapling)
-                if "error" in sapling_result:
-                    st.error(f"Sapling API 오류: {sapling_result['error']}")
-                    continue
+def main():
+    st.title("Yes24 리뷰 분석기")
+    
+    # API 키 입력 필드
+    sapling_api_key = st.text_input("Sapling.ai API 키를 입력하세요:", placeholder="Sapling.ai API 키")
+    openai_api_key = st.text_input("OpenAI API 키를 입력하세요:", placeholder="OpenAI API 키")
+    
+    # 입력 방식 선택
+    input_type = st.radio("입력 방식 선택:", ("URL", "텍스트"))
+    
+    if input_type == "URL":
+        url = st.text_input("Yes24 책 URL을 입력하세요:")
+        if st.button("분석 시작"):
+            if not sapling_api_key or not openai_api_key:
+                st.error("Sapling.ai 및 OpenAI API 키를 모두 입력해주세요.")
+            elif url:
+                with st.spinner("리뷰를 가져오고 분석 중..."):
+                    book_info = scrape_book_info(url)
+                    st.write(f"**책 제목**: {book_info['title']}")
+                    st.write(f"**저자**: {book_info['author']}")
+                    reviews = scrape_yes24_reviews(url)
+                    if reviews:
+                        st.success(f"{len(reviews)}개의 리뷰를 분석했습니다.")
+                        for i, review in enumerate(reviews, 1):
+                            sapling_result = analyze_with_sapling(review['text'], sapling_api_key)
+                            gpt_result = analyze_with_gpt(review['text'], openai_api_key)
+                            st.subheader(f"리뷰 {i}")
+                            st.write(f"**평점**: {review['rating']}")
+                            st.write(f"**리뷰 내용**: {review['text']}")
+                            st.write(f"**감정 분석 (Sapling.ai)**: {sapling_result}")
+                            st.write(f"**신뢰도 평가 (GPT)**: {gpt_result}")
+                            st.write("---")
+                    else:
+                        st.warning("리뷰를 찾을 수 없습니다. URL을 확인하세요.")
+            else:
+                st.error("URL을 입력해주세요.")
+    else:
+        review_text = st.text_area("리뷰 텍스트를 입력하세요:")
+        if st.button("분석 시작"):
+            if not sapling_api_key or not openai_api_key:
+                st.error("Sapling.ai 및 OpenAI API 키를 모두 입력해주세요.")
+            elif review_text:
+                with st.spinner("분석 중..."):
+                    sapling_result = analyze_with_sapling(review_text, sapling_api_key)
+                    gpt_result = analyze_with_gpt(review_text, openai_api_key)
+                    st.write(f"**리뷰 내용**: {review_text}")
+                    st.write(f"**감정 분석 (Sapling.ai)**: {sapling_result}")
+                    st.write(f"**신뢰도 평가 (GPT)**: {gpt_result}")
+            else:
+                st.error("리뷰 텍스트를 입력해주세요.")
 
-                score = sapling_result.get("score", 0)
-                st.markdown(f"**Sapling AI Score (AI 생성 가능성):** {score:.2f}")
-
-                # AI 생성 확률이 높을수록 광고성/의심 가능성 있음
-                if score >= 0.7:
-                    with st.spinner("GPT 심층 분석 중..."):
-                        gpt_result = analyze_review_gpt(review, api_key_openai)
-                    st.markdown(f"**GPT 분석 결과:**\n{gpt_result}")
-                else:
-                    st.markdown("✅ 정상 리뷰로 판단되어 GPT 분석은 생략합니다.")
+if __name__ == "__main__":
+    main()
