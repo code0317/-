@@ -1,3 +1,5 @@
 openai
 PyPDF2
 matplotlib
+selenium
+beautifulsoup4
