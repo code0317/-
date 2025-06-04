@@ -8,7 +8,7 @@ def get_naver_shopping_reviews(product_id, max_pages=2):
     headers = {
         "User-Agent": "Mozilla/5.0"
     }
-    for page in range(1, max_pages+1):
+    for page in range(1, max_pages + 1):
         url = f"https://smartstore.naver.com/i/v1/reviews?productId={product_id}&page={page}"
         res = requests.get(url, headers=headers)
         if res.status_code != 200:
@@ -24,14 +24,16 @@ def get_naver_shopping_reviews(product_id, max_pages=2):
 
     return reviews
 
-# --- Prospective API 리뷰 검사 ---
-def prospective_review_check(review_text, api_key):
-    url = "https://api.prospectiveapi.com/v1/review-check"  # 실제 API 주소 확인 필요
+# --- Sapling AI Detector API ---
+def sapling_review_check(review_text, api_key):
+    url = "https://api.sapling.ai/api/v1/aidetect"
     headers = {
-        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
-    payload = {"review": review_text}
+    payload = {
+        "key": api_key,
+        "text": review_text
+    }
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=10)
@@ -69,7 +71,7 @@ def analyze_review_gpt(review_text, api_key):
 st.title("🛍️ 네이버 스마트스토어 리뷰 신뢰도 분석기")
 
 api_key_openai = st.text_input("🔐 OpenAI API 키 입력", type="password")
-api_key_prospective = st.text_input("🔐 Prospective API 키 입력", type="password")
+api_key_sapling = st.text_input("🔐 Sapling AI Detector API 키 입력", type="password")
 product_id = st.text_input("📦 네이버 스마트스토어 상품 ID 입력")
 
 max_pages = st.number_input("최대 크롤링할 리뷰 페이지 수", min_value=1, max_value=10, value=2, step=1)
@@ -77,8 +79,8 @@ max_pages = st.number_input("최대 크롤링할 리뷰 페이지 수", min_valu
 if st.button("리뷰 크롤링 및 분석 시작"):
     if not api_key_openai:
         st.warning("OpenAI API 키를 입력하세요.")
-    elif not api_key_prospective:
-        st.warning("Prospective API 키를 입력하세요.")
+    elif not api_key_sapling:
+        st.warning("Sapling API 키를 입력하세요.")
     elif not product_id:
         st.warning("상품 ID를 입력하세요.")
     else:
@@ -94,19 +96,17 @@ if st.button("리뷰 크롤링 및 분석 시작"):
                 st.markdown(f"---\n### 리뷰 {i}")
                 st.markdown(f"**원문:** {review}")
 
-                with st.spinner("Prospective API 검사 중..."):
-                    prospective_result = prospective_review_check(review, api_key_prospective)
-                if "error" in prospective_result:
-                    st.error(f"Prospective API 오류: {prospective_result['error']}")
+                with st.spinner("Sapling AI Detector 검사 중..."):
+                    sapling_result = sapling_review_check(review, api_key_sapling)
+                if "error" in sapling_result:
+                    st.error(f"Sapling API 오류: {sapling_result['error']}")
                     continue
-                
-                st.markdown(f"**Prospective API 결과:** {prospective_result}")
 
-                # Prospective API 결과 기반 필터 (키 이름은 API 문서에 맞게 수정)
-                is_ad_review = prospective_result.get("is_ad_review", False)
-                is_fake_review = prospective_result.get("is_fake_review", False)
+                score = sapling_result.get("score", 0)
+                st.markdown(f"**Sapling AI Score (AI 생성 가능성):** {score:.2f}")
 
-                if is_ad_review or is_fake_review:
+                # AI 생성 확률이 높을수록 광고성/의심 가능성 있음
+                if score >= 0.7:
                     with st.spinner("GPT 심층 분석 중..."):
                         gpt_result = analyze_review_gpt(review, api_key_openai)
                     st.markdown(f"**GPT 분석 결과:**\n{gpt_result}")
